@@ -54,7 +54,7 @@ func newRootCmd() *cobra.Command {
 
 					events = append(events, e)
 
-					b, err := json.Marshal(e)
+					b, err := json.Marshal(events)
 					if err != nil {
 						log.Println("error trying to marshal the event: ", e)
 						return
