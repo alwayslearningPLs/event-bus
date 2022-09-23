@@ -24,17 +24,43 @@ func newRootCmd() *cobra.Command {
 		Long:    "event bus filtering",
 		PreRun: func(cmd *cobra.Command, args []string) {
 			if strings.TrimSpace(outputFile) == "" {
-				outputFile = inputFile + ".json"
+				if strings.TrimSpace(inputFile) != "" {
+					outputFile = inputFile + ".json"
+				} else {
+					outputFile = "events.json"
+				}
 			}
 		},
 		Run: func(cmd *cobra.Command, args []string) {
 			if inputFile != "" {
 				dumpFile()
 			} else {
+				var events []event
 				cl := sse.NewClient(url)
 
+				if b, err := os.ReadFile(outputFile); err == nil {
+					if err = json.Unmarshal(b, &events); err != nil {
+						os.Remove(outputFile)
+					}
+				}
+
+				log.Println("Listening events on ", url)
 				cl.SubscribeRaw(func(msg *sse.Event) {
-					log.Println(string(msg.Data))
+					e := event{Name: string(msg.Event)}
+					if err := json.Unmarshal(msg.Data, &e.Data); err != nil {
+						log.Println("error trying to unmarshal the event: ", msg.Data)
+						return
+					}
+
+					events = append(events, e)
+
+					b, err := json.Marshal(e)
+					if err != nil {
+						log.Println("error trying to marshal the event: ", e)
+						return
+					}
+
+					os.WriteFile(outputFile, b, 0666)
 				})
 			}
 		},
@@ -52,8 +78,6 @@ func execute() error {
 
 	root.MarkPersistentFlagFilename("input-file")
 	root.MarkPersistentFlagFilename("output-file")
-
-	root.MarkFlagRequired("input-file")
 
 	return root.Execute()
 }
